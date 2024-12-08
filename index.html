@@ -118,6 +118,11 @@
         let dailySummary = {};
         let currentUser = null;
 
+        // Load stock from localStorage
+        if(localStorage.getItem("stock")) {
+            stock = JSON.parse(localStorage.getItem("stock"));
+        }
+
         // Users setup
         const users = {
             1: { password: "1", role: "admin" },
@@ -169,6 +174,7 @@
             const price = +document.getElementById("item-price").value;
 
             stock.push({ name, quantity, price });
+            localStorage.setItem("stock", JSON.stringify(stock));
             renderStockTable();
             renderBillingItems();  // Update cashier's available items
         });
@@ -188,6 +194,7 @@
 
         function removeStock(name) {
             stock = stock.filter(item => item.name !== name);
+            localStorage.setItem("stock", JSON.stringify(stock));
             renderStockTable();
             renderBillingItems();  // Update cashier's available items
         }
@@ -202,6 +209,7 @@
             if (item && item.quantity >= quantity) {
                 cart.push({ name: itemName, quantity, price: item.price });
                 item.quantity -= quantity;
+                localStorage.setItem("stock", JSON.stringify(stock));
                 renderCart();
                 renderStockTable();
                 updateDailySummary(currentUser, quantity, item.price);
@@ -235,48 +243,51 @@
             const stockItem = stock.find(i => i.name === item.name);
             stockItem.quantity += item.quantity;
             cart.splice(index, 1);
+            localStorage.setItem("stock", JSON.stringify(stock));
             renderCart();
             renderStockTable();
-            updateDailySummary(currentUser, -item.quantity, item.price);
         }
 
         function updateTotal() {
             const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-            document.getElementById("bill-total").textContent = "Total: " + total.toFixed(2);
+            document.getElementById("bill-total").textContent = `Total: $${total.toFixed(2)}`;
         }
 
-        // Generate Bill PDF
+        // Generate Bill as PDF
         document.getElementById("generate-bill-btn").addEventListener("click", () => {
+            const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            doc.text("Billing Summary", 10, 10);
-            cart.forEach((item, index) => {
-                doc.text(`${item.name}: ${item.quantity} x ${item.price.toFixed(2)} = ${(item.quantity * item.price).toFixed(2)}`, 10, 20 + index * 10);
+            doc.text("Billing Invoice", 20, 20);
+            let y = 30;
+            cart.forEach(item => {
+                doc.text(`${item.name} x${item.quantity} = ${(item.price * item.quantity).toFixed(2)}`, 20, y);
+                y += 10;
             });
-            const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-            doc.text(`Total: ${total.toFixed(2)}`, 10, 20 + cart.length * 10);
-            doc.save("bill.pdf");
+            doc.text(`Total: $${cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2)}`, 20, y + 10);
+            doc.save("invoice.pdf");
         });
 
         // Update Daily Summary
-        function updateDailySummary(cashier, itemsSold, revenue) {
+        function updateDailySummary(cashier, quantity, price) {
             if (!dailySummary[cashier]) {
                 dailySummary[cashier] = { itemsSold: 0, revenue: 0 };
             }
-            dailySummary[cashier].itemsSold += itemsSold;
-            dailySummary[cashier].revenue += itemsSold * revenue;
+            dailySummary[cashier].itemsSold += quantity;
+            dailySummary[cashier].revenue += quantity * price;
             renderDailySummary();
         }
 
         function renderDailySummary() {
             const tbody = document.getElementById("daily-summary-table").querySelector("tbody");
-            tbody.innerHTML = Object.keys(dailySummary).map(cashier => `
+            tbody.innerHTML = Object.entries(dailySummary).map(([cashier, data]) => `
                 <tr>
                     <td>${cashier}</td>
-                    <td>${dailySummary[cashier].itemsSold}</td>
-                    <td>${dailySummary[cashier].revenue.toFixed(2)}</td>
+                    <td>${data.itemsSold}</td>
+                    <td>${data.revenue.toFixed(2)}</td>
                 </tr>
             `).join("");
         }
+
     </script>
 </body>
 </html>
